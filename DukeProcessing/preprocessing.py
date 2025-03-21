@@ -277,6 +277,7 @@ class DataPreprocessorUMN():
         self.masks = self.dataset['ManualFluid1'][0]
 
         self.dest_path = dest_path
+        print("Destination path:", self.dest_path)
         assert data_path != dest_path, "Please provide a dest_path different from data_path"
 
         self.slicing = slicing

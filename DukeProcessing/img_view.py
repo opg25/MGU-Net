@@ -2,8 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the .npy files
-image_path = 'DukeProcessing/DukeData/train/images/Subject_02_00.npy'
-mask_path = 'DukeProcessing/DukeData/train/masks/Subject_02_00.npy'
+image_path = 'DukeData/train/images/Subject_04_07.npy'
+mask_path = 'DukeData/train/masks/Subject_04_07.npy'
+
 
 image = np.load(image_path)
 mask = np.load(mask_path)

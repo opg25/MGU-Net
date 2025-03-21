@@ -357,6 +357,10 @@ def parse_args():
 
 def main():
     ##### config #####
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    print(f"Number of GPUs: {torch.cuda.device_count()}")
+    print(f"Current GPU: {torch.cuda.current_device()}")
+    print(f"GPU Name: {torch.cuda.get_device_name(0)}")
     args = parse_args()
     seed = 1234
     torch.manual_seed(seed)
@@ -364,7 +368,7 @@ def main():
     print('torch version:',torch.__version__)
     ##### result path setting #####
     tn = args.t 
-    task_name = args.data_dir.split('/')[-2] + '/' + args.data_dir.split('/')[-1]
+    task_name = 'unsure1' + '/unsure2'
     train_result_path = osp.join('result',task_name,'train',args.name + '_' +str(args.lr) + '_'+ tn)
     if not exists(train_result_path):
         os.makedirs(train_result_path)
