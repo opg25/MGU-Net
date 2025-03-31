@@ -3,7 +3,6 @@
 # @Author:Jiaxuan Li
 ##### System library #####
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import os.path as osp
 from os.path import exists
 import argparse
@@ -27,6 +26,7 @@ from utils.utils import AverageMeter,save_model
 from utils.utils import compute_dice,compute_pa,compute_single_avg_score
 from utils.vis import vis_result
 
+
 # logger vis
 FORMAT = "[%(asctime)-15s %(filename)s:%(lineno)d %(funcName)s] %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -49,20 +49,21 @@ def train(args,train_loader, model, criterion1, criterion2, optimizer,epoch,prin
         target_var_seg = Variable(target).cuda()
         target_var_seg1 = copy.deepcopy(target_var_seg)
         input_var1 = copy.deepcopy(input_var)
+        
         # forward
         output_seg1,_,output_seg = model(input_var1)
-        # modify label for the first stage network
-        target_var_seg1[target_var_seg==0]=0
-        target_var_seg1[target_var_seg==1]=1
-        target_var_seg1[target_var_seg==2]=1
-        target_var_seg1[target_var_seg==3]=1
-        target_var_seg1[target_var_seg==4]=1
-        target_var_seg1[target_var_seg==5]=1
-        target_var_seg1[target_var_seg==6]=1
-        target_var_seg1[target_var_seg==7]=1
-        target_var_seg1[target_var_seg==8]=1
-        target_var_seg1[target_var_seg==9]=1
-        target_var_seg1[target_var_seg==10] = 2
+        
+        # Create binary mask for first stage: background (0), layer (1), disc (2)
+        target_var_seg1 = torch.zeros_like(target_var_seg)  # Initialize with zeros (background)
+        # All layer pixels (1-9) become class 1
+        target_var_seg1[(target_var_seg >= 1) & (target_var_seg <= 9)] = 1
+        # Disc pixels (10) become class 2
+        target_var_seg1[target_var_seg == 10] = 2
+
+        # Debug prints
+        print(f"Stage 1 Target unique values: {torch.unique(target_var_seg1)}")
+        print(f"Stage 2 Target unique values: {torch.unique(target_var_seg)}")
+
         # calculate loss
         loss_1_1 = criterion1[0](output_seg1, target_var_seg1)
         loss_1_2 = criterion1[1](output_seg1, target_var_seg1)
@@ -357,10 +358,33 @@ def parse_args():
 
 def main():
     ##### config #####
+    # Disable cuDNN
+    torch.backends.cudnn.enabled = False
+    
+    import sys
+    print(f"Python Path: {sys.executable}")
+    print(f"PyTorch Path: {torch.__file__}")
+    import os
+    print(f"torch version: {torch.__version__}")
+    print(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+    print(f"torch.cuda.device_count(): {torch.cuda.device_count()}")
+    print(f"torch version.cuda: {torch.version.cuda}")
+    print(f"torch.backends.cudnn.enabled: {torch.backends.cudnn.enabled}")
+
+    if torch.cuda.is_available():
+        torch.cuda.set_device(0)
+        print(f"Current GPU: {torch.cuda.current_device()}")
+    else:
+        print("No GPU available, running on CPU.")
+
     print(f"CUDA available: {torch.cuda.is_available()}")
     print(f"Number of GPUs: {torch.cuda.device_count()}")
-    print(f"Current GPU: {torch.cuda.current_device()}")
-    print(f"GPU Name: {torch.cuda.get_device_name(0)}")
+    if torch.cuda.is_available():
+        print(f"GPU Name: {torch.cuda.get_device_name(0)}")
+        x = torch.rand(5, 5).cuda()
+        print(x)
+    
+    
     args = parse_args()
     seed = 1234
     torch.manual_seed(seed)

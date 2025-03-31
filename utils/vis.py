@@ -6,14 +6,26 @@ import cv2
 def vis_result(imn, imt, ant, pred, save_dir, n_class=11):  
     img = gray2rgbimage(imt)
     imn = imn[0]
+    
+    # Ensure filename has .png extension
+    if not imn.lower().endswith(('.png', '.jpg', '.jpeg')):
+        imn = f"{imn}.png"
+    
     pred_img = draw_img(imt, pred, n_class=n_class)
+    
     if(ant is None):
-        cv2.imwrite(osp.join(save_dir, imn), np.hstack((img, pred_img)).astype('uint8'))
+        save_path = osp.join(save_dir, imn)
+        cv2.imwrite(save_path, np.hstack((img, pred_img)).astype('uint8'))
     else:
         ant_img = draw_img(imt, ant, n_class=n_class)
-        cv2.imwrite(osp.join(save_dir, imn), np.hstack((img,ant_img,pred_img )).astype('uint8'))
-        cv2.imwrite(osp.join(save_dir, 'label/' + imn), ant_img.astype('uint8'))
-        cv2.imwrite(osp.join(save_dir, 'pred/' + imn), pred_img.astype('uint8'))
+        
+        # Save combined visualization
+        save_path = osp.join(save_dir, imn)
+        cv2.imwrite(save_path, np.hstack((img, ant_img, pred_img)).astype('uint8'))
+        
+        # Save individual results
+        cv2.imwrite(osp.join(save_dir, 'label', imn), ant_img.astype('uint8'))
+        cv2.imwrite(osp.join(save_dir, 'pred', imn), pred_img.astype('uint8'))
 
 def draw_img(img, seg, title = None, n_class=11):
     mask = img

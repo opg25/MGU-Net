@@ -5,15 +5,31 @@ from PIL import Image, ImageOps
 import torch
 
 class Label_Transform(object):
-    def __init__(self,label_pixel=(26, 51, 77, 102, 128, 153, 179, 204, 230, 255)):
-        self.label_pixel = label_pixel
+    def __init__(self):
+        # Define the mapping of pixel values to class indices
+        self.label_ranges = [
+            (0, 0),      # background: 0
+            (1, 25),     # class 1
+            (26, 50),    # class 2
+            (51, 75),    # class 3
+            (76, 100),   # class 4
+            (101, 125),  # class 5
+            (126, 150),  # class 6
+            (151, 175),  # class 7
+            (176, 200),  # class 8
+            (201, 225),  # class 9
+            (226, 255)   # class 10
+        ]
 
     def __call__(self, image, label, *args):
         label = np.array(label)
-        for i in range(len(self.label_pixel)):
-            label[label == self.label_pixel[i]] = i+1
-
-        return image,Image.fromarray(label)
+        label_out = np.zeros_like(label)
+        
+        # Map pixel value ranges to class indices
+        for class_idx, (min_val, max_val) in enumerate(self.label_ranges):
+            label_out[(label >= min_val) & (label <= max_val)] = class_idx
+            
+        return image, Image.fromarray(label_out)
 
 class Normalize(object):
     """Given mean: (R, G, B) and std: (R, G, B),
@@ -41,25 +57,27 @@ class ToTensor(object):
 
     def __call__(self, pic, label=None):
         if isinstance(pic, np.ndarray):
-            # handle numpy array
             img = torch.from_numpy(pic)
         else:
-            # handle PIL Image
-            img = torch.ByteTensor(torch.ByteStorage.from_buffer(pic.tobytes()))
-            # PIL image mode: 1, L, P, I, F, RGB, YCbCr, RGBA, CMYK
-            if pic.mode == 'YCbCr':
-                nchannel = 3
-            else:
-                nchannel = len(pic.mode)
-            img = img.view(pic.size[1], pic.size[0], nchannel)
-            # put it from HWC to CHW format
-            # yikes, this transpose takes 80% of the loading time/CPU
-            img = img.transpose(0, 1).transpose(0, 2).contiguous()
+            # Convert to numpy array
+            img = np.array(pic)
+            
+            # Ensure grayscale images are properly shaped
+            if len(img.shape) == 2:
+                img = img[:, :, np.newaxis]
+            
+            # Convert to tensor
+            img = torch.from_numpy(img.transpose((2, 0, 1)))
+
+        # Convert to float and normalize to [0,1]
         img = img.float().div(255)
+
         if label is None:
             return img,
         else:
-            return img, torch.LongTensor(np.array(label, dtype=np.int))
+            if isinstance(label, Image.Image):
+                label = np.array(label, dtype=np.int64)
+            return img, torch.from_numpy(label)
 
 
 class Compose(object):

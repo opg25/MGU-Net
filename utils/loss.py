@@ -19,24 +19,29 @@ def loss_builder2():
     return criterion
 
 class DiceLoss(nn.Module):
-    def __init__(self, class_num=11,smooth=1): 
+    def __init__(self, class_num=11, smooth=1): 
         super(DiceLoss, self).__init__()
         self.smooth = smooth
         self.class_num = class_num
 
-    def forward(self,input, target):
+    def forward(self, input, target):
+        # Clamp target values to be within valid range
+        target = torch.clamp(target, 0, self.class_num - 1)
+        
         input = torch.exp(input)
         self.smooth = 0.
         Dice = Variable(torch.Tensor([0]).float()).cuda()
-        for i in range(1,self.class_num):
-            input_i = input[:,i,:,:]
+        
+        for i in range(1, self.class_num):
+            input_i = input[:, i, :, :]
             target_i = (target == i).float()
-            intersect = (input_i*target_i).sum()
+            intersect = (input_i * target_i).sum()
             union = torch.sum(input_i) + torch.sum(target_i)
             if target_i.sum() == 0:
                 dice = Variable(torch.Tensor([1]).float()).cuda()
             else:
                 dice = (2 * intersect + self.smooth) / (union + self.smooth)
             Dice += dice
+        
         dice_loss = 1 - Dice/(self.class_num - 1)
         return dice_loss

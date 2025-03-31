@@ -54,23 +54,30 @@ class UnetConv(nn.Module):
 class UnetUp(nn.Module):
     def __init__(self,in_channels, out_channels, is_deconv, n_concat=2):
         super(UnetUp, self).__init__()
-        self.conv = UnetConv(in_channels+(n_concat-2)* out_channels, out_channels, False)
+        self.conv = UnetConv(in_channels+(n_concat-2)*out_channels, out_channels, False)
         if is_deconv:
             self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1)
         else:
-            self.up = nn.UpsamplingBilinear2d(scale_factor=2)
+            self.up = nn.Sequential(
+                nn.UpsamplingBilinear2d(scale_factor=2),
+                nn.Conv2d(in_channels, out_channels, kernel_size=1)  # 1x1 conv to match channels
+            )
 
         # initialise the blocks
         for m in self.children():
             if m.__class__.__name__.find('UnetConv') != -1: continue
             init_weights(m, init_type='kaiming')
 
-    def forward(self, inputs0,*input):
+    def forward(self, inputs0, *input):
         outputs0 = self.up(inputs0)
         for i in range(len(input)):
-            outputs0 = torch.cat([outputs0,input[i]], 1)
+            # Ensure tensors have matching spatial dimensions
+            if outputs0.shape[2:] != input[i].shape[2:]:
+                input_resized = F.interpolate(input[i], size=outputs0.shape[2:], mode='bilinear', align_corners=True)
+            else:
+                input_resized = input[i]
+            outputs0 = torch.cat([outputs0, input_resized], 1)
         return self.conv(outputs0)
-
 
 class UnetUp4(nn.Module):
     def __init__(self,in_channels, out_channels, is_deconv, n_concat=2):
@@ -79,7 +86,10 @@ class UnetUp4(nn.Module):
         if is_deconv:
             self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=6, stride=4, padding=1)
         else:
-            self.up = nn.UpsamplingBilinear2d(scale_factor=4)
+            self.up = nn.Sequential(
+                nn.UpsamplingBilinear2d(scale_factor=4),
+                nn.Conv2d(in_channels, out_channels, kernel_size=1)  # 1x1 conv to match channels
+            )
         # initialise the blocks
         for m in self.children():
             if m.__class__.__name__.find('UnetConv') != -1: continue
@@ -88,7 +98,12 @@ class UnetUp4(nn.Module):
     def forward(self, inputs0,*input):
         outputs0 = self.up(inputs0)
         for i in range(len(input)):
-            outputs0 = torch.cat([outputs0,input[i]], 1)
+            # Ensure tensors have matching spatial dimensions
+            if outputs0.shape[2:] != input[i].shape[2:]:
+                input_resized = F.interpolate(input[i], size=outputs0.shape[2:], mode='bilinear', align_corners=True)
+            else:
+                input_resized = input[i]
+            outputs0 = torch.cat([outputs0, input_resized], 1)
         return self.conv(outputs0)
 
 
@@ -151,17 +166,26 @@ class GloRe_Unit(nn.Module):
         return out
 
 def img2df(img, mask):
-        img[mask == 0] = 0
-        img[mask == 2] = 0
-        return img
+    # Ensure mask has same spatial dimensions as image
+    if img.shape != mask.shape:
+        mask = F.interpolate(mask.float(), size=img.shape[2:], mode='nearest').long()
+    img = img.clone()  # Create a copy to avoid modifying original tensor
+    img[mask == 0] = 0
+    img[mask == 2] = 0
+    return img
 
 def feature_fusion(out1, out2):
-        output2 = F.log_softmax(out2, dim=1)
-        out1_bg = torch.zeros([out1.shape[0], 1, out1.shape[2], out1.shape[3]]).cuda()
-        out1_disc = torch.zeros([out1.shape[0], 1, out1.shape[2], out1.shape[3]]).cuda()
-        out2_layer = torch.zeros([out2.shape[0], 9, out2.shape[2], out2.shape[3]]).cuda()
-        out1_bg[:, 0, :, :] = out1[:, 0, :, :]
-        out1_disc[:, 0, :, :] = out1[:, 2, :, :]
-        out2_layer[:, :, :, :] = out2[:, 1:, :, :]
-        out = torch.cat([out1_bg, out2_layer, out1_disc], 1)
-        return output2, out
+    output2 = F.log_softmax(out2, dim=1)
+    out1_bg = torch.zeros([out1.shape[0], 1, out1.shape[2], out1.shape[3]]).cuda()
+    out1_disc = torch.zeros([out1.shape[0], 1, out1.shape[2], out1.shape[3]]).cuda()
+    out2_layer = torch.zeros([out2.shape[0], 9, out1.shape[2], out1.shape[3]]).cuda()  # Match out1 dimensions
+
+    out1_bg[:, 0, :, :] = out1[:, 0, :, :]
+    out1_disc[:, 0, :, :] = out1[:, 2, :, :]
+    
+    # Resize out2_layer to match out1 dimensions
+    out2_layer_resized = F.interpolate(out2[:, 1:, :, :], size=(out1.shape[2], out1.shape[3]), mode='bilinear', align_corners=True)
+    out2_layer[:, :, :, :] = out2_layer_resized
+
+    out = torch.cat([out1_bg, out2_layer, out1_disc], 1)
+    return output2, out
