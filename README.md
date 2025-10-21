@@ -1,3 +1,4 @@
+This is a modified version of Jiaxuan Li's MGU Net, which itself is built on [AI-Challenger-Retinal-Edema-Segmentation](https://github.com/ShawnBIT/AI-Challenger-Retinal-Edema-Segmentation) and [GloRe](https://github.com/facebookresearch/GloRe). It was modified as one small part of the Biomarker Segmentation project in collaboration with University of Bath and Siloton.
 
 # MGU-Net
 Multi-Scale GCN-Assisted Two-Stage Network for Joint Segmentation of Retinal Layers and Disc in Peripapillary OCT Images
